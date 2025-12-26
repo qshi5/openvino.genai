@@ -1,6 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <chrono>
 #include <optional>
 #include <random>
 
@@ -108,7 +109,11 @@ public:
             m_max_prompt_len = kv_desc.max_prompt_len;
             m_max_kv_cache_size = kv_desc.max_prompt_len + kv_desc.min_response_len;
         } else {
+            const auto compile_start = std::chrono::steady_clock::now();
             compiled_language_model = utils::singleton_core().compile_model(language_model, device, lm_properties);
+            const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - compile_start);
+            std::cout << "[ INFO ] " << language_model_path << " compiled in " << compile_duration.count() << " ms" << std::endl;
         }
         ov::genai::utils::print_compiled_model_properties(compiled_language_model, "VLM language model");
 

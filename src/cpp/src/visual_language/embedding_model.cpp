@@ -1,6 +1,7 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <chrono>
 #include <fstream>
 #include <memory>
 
@@ -49,7 +50,11 @@ EmbeddingsModel::EmbeddingsModel(const std::filesystem::path& model_dir,
     // apply embedding postprocessing step by merging them into the model
     merge_postprocess(m_model, scale_emb);
 
+    const auto compile_start = std::chrono::steady_clock::now();
     ov::CompiledModel compiled_model = core.compile_model(m_model, device, properties);
+    const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - compile_start);
+    std::cout << "[ INFO ] " << model_dir / "openvino_text_embeddings_model.xml" << " compiled in " << compile_duration.count() << " ms" << std::endl;
     ov::genai::utils::print_compiled_model_properties(compiled_model, "text embeddings model");
     m_embeddings_requests_queue = init(compiled_model);
 }

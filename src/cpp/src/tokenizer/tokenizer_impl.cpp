@@ -1,6 +1,8 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <chrono>
+
 #include "tokenizer/tokenizer_impl.hpp"
 #include "add_second_input_pass.hpp"
 #include "sampling/structured_output/structured_output_controller.hpp"
@@ -404,7 +406,11 @@ void Tokenizer::TokenizerImpl::setup_tokenizer(const std::pair<std::shared_ptr<o
         manager.register_pass<MakeAddSpecialTokensSatateful>();
         manager.register_pass<MakePaddingSatateful>();
         manager.run_passes(ov_tokenizer);
+        const auto compile_start = std::chrono::steady_clock::now();
         ov::CompiledModel tokenizer = core.compile_model(ov_tokenizer, device, properties);
+        const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - compile_start);
+        std::cout << "[ INFO ] tokenizer"  << " compiled in " << compile_duration.count() << " ms" << std::endl;
         ov::genai::utils::print_compiled_model_properties(tokenizer, "OV Tokenizer");
 
         m_ireq_queue_tokenizer = std::make_unique<CircularBufferQueue<ov::InferRequest>>(
@@ -424,14 +430,22 @@ void Tokenizer::TokenizerImpl::setup_tokenizer(const std::pair<std::shared_ptr<o
 
         // Initialize tokenizer's cache to save time later.
         // TODO CVS-150630: Empty strings sporadically can fail, therefore use nonempty string for warmup.
+        const auto encode_start = std::chrono::steady_clock::now();
         encode("non empty string");
+        const auto encode_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - encode_start);
+        std::cout << "[ INFO ] encoder " << encode_duration.count() << " ms" << std::endl;
     }
 
     if (ov_detokenizer) {
         ov::pass::Manager manager_detok;
         manager_detok.register_pass<MakeVocabDecoderSatateful>();
         manager_detok.run_passes(ov_detokenizer);
+        const auto compile_start = std::chrono::steady_clock::now();
         ov::CompiledModel detokenizer = core.compile_model(ov_detokenizer, device, properties);
+        const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - compile_start);
+        std::cout << "[ INFO ] " << "detokenizer " << " compiled in " << compile_duration.count() << " ms" << std::endl;
         ov::genai::utils::print_compiled_model_properties(detokenizer, "OV Detokenizer");
 
         m_ireq_queue_detokenizer = std::make_unique<CircularBufferQueue<ov::InferRequest>>(
@@ -448,8 +462,11 @@ void Tokenizer::TokenizerImpl::setup_tokenizer(const std::pair<std::shared_ptr<o
         if (m_eos_token_id != -1 && m_eos_token.empty())
             m_eos_token = decode(std::vector{m_eos_token_id}, {ov::genai::skip_special_tokens(false)});
         // Initialize detokenizer's cache to save time later.
+        const auto decode_start = std::chrono::steady_clock::now();
         decode({1, 33, 199, 42, 42});
-
+        const auto decode_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - decode_start);
+        std::cout << "[ INFO ] decoder " << decode_duration.count() << " ms" << std::endl;
         m_vocab = read_vocab_from_detokenizer_model(ov_detokenizer);
     }
 }

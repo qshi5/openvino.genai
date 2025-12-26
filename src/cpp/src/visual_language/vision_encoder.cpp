@@ -1,5 +1,6 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+#include <chrono>
 
 #include "vision_encoder.hpp"
 #include "utils.hpp"
@@ -20,7 +21,12 @@
 namespace ov::genai {
 
 VisionEncoder::VisionEncoder(const std::filesystem::path& model_dir, const std::string& device, const ov::AnyMap properties) {
+    const auto start = std::chrono::steady_clock::now();
     auto compiled_model = utils::singleton_core().compile_model(model_dir / "openvino_vision_embeddings_model.xml", device, properties);
+    const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start);
+    std::cout << "[ INFO ] " << model_dir / "openvino_vision_embeddings_model.xml" << " compiled in " << compile_duration.count() << " ms" << std::endl;
+
     ov::genai::utils::print_compiled_model_properties(compiled_model, "VLM vision embeddings model");
     m_ireq_queue_vision_encoder = std::make_unique<CircularBufferQueue<ov::InferRequest>>(
         compiled_model.get_property(ov::optimal_number_of_infer_requests),

@@ -2,6 +2,9 @@
 // Copyright (C) 2023-2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <chrono>
+#include <iostream>
+
 #include "visual_language/qwen2vl/classes.hpp"
 
 #include "visual_language/clip.hpp"
@@ -662,7 +665,12 @@ VisionEncoderQwen2VL::VisionEncoderQwen2VL(const std::filesystem::path& model_di
       use_ov_image_preprocess(check_image_preprocess_env()) {
     if (use_ov_image_preprocess) {
         auto model_org = utils::singleton_core().read_model(model_dir / "openvino_vision_embeddings_model.xml");
+        const auto compile_start = std::chrono::steady_clock::now();
         m_ireq_queue_vision_encoder = create_vision_encoder_ireq(model_org, m_processor_config, device, properties);
+        const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - compile_start);
+        std::cout << "[ INFO ] After patch preprocess into model." << std::endl;
+        std::cout << "[ INFO ] " << model_dir / "openvino_vision_embeddings_model.xml" << " compiled in " << compile_duration.count() << " ms" << std::endl;
     }
 }
 
@@ -927,8 +935,11 @@ InputsEmbedderQwen2VL::InputsEmbedderQwen2VL(
     auto model = utils::singleton_core().read_model(model_dir / "openvino_vision_embeddings_merger_model.xml");
     utils::request_vl_sdpa_transformations(model);
 
+    const auto compile_start = std::chrono::steady_clock::now();
     auto compiled_model = utils::singleton_core().compile_model(model, device, device_config);
-
+    const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - compile_start);
+    std::cout << "[ INFO ] " << model_dir / "openvino_vision_embeddings_merger_model.xml" << " compiled in " << compile_duration.count() << " ms" << std::endl;
     m_with_cu_seqlens_input = utils::check_vl_sdpa_transformations(compiled_model);
     ov::genai::utils::print_compiled_model_properties(compiled_model,
         m_with_cu_seqlens_input ? "VLM vision embeddings merger model with VLSDPA optimization ENABLED" :
