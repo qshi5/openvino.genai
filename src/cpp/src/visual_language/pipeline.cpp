@@ -449,6 +449,8 @@ VLMPipeline::VLMPipeline(
     const std::string& device,
     const ov::AnyMap& user_properties
 ) {
+    std::cout << std::endl;
+    std::cout << "[ INFO ] " <<  "==================== VLMPipeline to start" << std::endl;
     auto start_time = std::chrono::steady_clock::now();
 
     auto [properties, attention_backend] = utils::extract_attention_backend(user_properties);
@@ -481,6 +483,9 @@ VLMPipeline::VLMPipeline(
     }
 
     auto stop_time = std::chrono::steady_clock::now();
+    const auto VLM_pipeline_duration = std::chrono::duration_cast<std::chrono::milliseconds>( stop_time - start_time);
+    std::cout << "[ INFO ] " <<  "================= VLMPipeline Time is " << VLM_pipeline_duration.count() << " ms" << std::endl;
+    std::cout << std::endl;
     m_pimpl->set_load_time(std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - start_time).count());
 }
 

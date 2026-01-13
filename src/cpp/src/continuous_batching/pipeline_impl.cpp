@@ -135,7 +135,15 @@ void ContinuousBatchingPipeline::ContinuousBatchingImpl::initialize_pipeline(
         filtered_properties.fork().erase("sampler_num_threads");   // do not use iterator sampler_num_threads_it because a forked container may not be the same container
     }
 
+    const auto compile_start = std::chrono::steady_clock::now();
     ov::CompiledModel compiled_model = utils::singleton_core().compile_model(model, device, *filtered_properties);
+    const auto compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - compile_start);
+    if (m_is_validation_mode_enabled) {
+        std::cout << "[ INFO ] " <<  "Main Model: " << model->get_name() << "(openvino_language_model.xml) compiled in " << compile_duration.count() << " ms" << std::endl;
+    } else {
+        std::cout << "[ INFO ] " <<  "Model: " << model->get_name() << " compiled in " << compile_duration.count() << " ms" << std::endl;
+    }
     std::vector<std::string> execution_devices = compiled_model.get_property(ov::execution_devices);
     const bool all_gpu_device =
         std::all_of(execution_devices.begin(), execution_devices.end(), [&](const std::string& device) {

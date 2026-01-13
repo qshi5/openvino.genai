@@ -94,16 +94,32 @@ ContinuousBatchingPipeline::ContinuousBatchingPipeline( const std::filesystem::p
     auto is_prompt_lookup_enabled = extract_prompt_lookup_from_config(properties_without_draft_model);
     auto eagle_rt_info = extract_eagle3_mode_from_config(draft_model_desr.properties, models_path);
 
+    auto start_to_read_time = std::chrono::steady_clock::now();
+    const auto before_read_duration = std::chrono::duration_cast<std::chrono::milliseconds>( start_to_read_time - start_time);
+    std::cout << "[ INFO ] " <<  "*******   Stage before_read_duration is " << before_read_duration.count() << " ms" << std::endl;
+
     auto model = utils::read_model(models_path, properties);
     auto [properties_without_draft_model_without_gguf, enable_save_ov_model] = utils::extract_gguf_properties(properties_without_draft_model);
     properties_without_draft_model_without_gguf[ov::cache_model_path.name()] = models_path;
+
+    auto start_to_tokennizer_time = std::chrono::steady_clock::now();
+    const auto read_model_duration = std::chrono::duration_cast<std::chrono::milliseconds>( start_to_tokennizer_time - start_to_read_time);
+    std::cout << "[ INFO ] " <<  "*******   Stage read_model_duration of [" << models_path << "] is " << read_model_duration.count() << " ms" << std::endl;
+
     auto tokenizer = ov::genai::Tokenizer(models_path, tokenizer_properties);
     auto generation_config = utils::from_config_json_if_exists(models_path);
+
+    auto end_tokennizer_time = std::chrono::steady_clock::now();
+    const auto tokenizer_duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_tokennizer_time - start_to_tokennizer_time);
+    std::cout << "[ INFO ] " <<  "*******   Stage tokenizer_duration is " << tokenizer_duration.count() << " ms" << std::endl;
 
     std::shared_ptr<InputsEmbedder> embedder;
     if (std::filesystem::exists(models_path / "openvino_text_embeddings_model.xml")) {
         embedder = std::make_shared<InputsEmbedder>(models_path, device, vision_encoder_properties);
     }
+    auto end_embedder_time = std::chrono::steady_clock::now();
+    const auto embedder_duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_embedder_time - end_tokennizer_time);
+    std::cout << "[ INFO ] " <<  "*******   Stage embedder_duration is " << embedder_duration.count() << " ms" << std::endl;
 
     utils::print_scheduler_config_info(scheduler_config);
 
@@ -113,24 +129,38 @@ ContinuousBatchingPipeline::ContinuousBatchingPipeline( const std::filesystem::p
         m_impl = std::make_shared<PromptLookupImpl>(model, tokenizer, scheduler_config, device, properties_without_draft_model_without_gguf, generation_config);
     } else if (draft_model_desr.model != nullptr && eagle_rt_info.eagle3_mode) {
         ov::genai::ModelDesc main_model_descr;
+        auto start_time_llm = std::chrono::steady_clock::now();
         if (embedder) {
             main_model_descr = ov::genai::ModelDesc(model, tokenizer, embedder, device, properties_without_draft_model_without_gguf, scheduler_config, generation_config);
         }else {
             main_model_descr = ov::genai::ModelDesc(model, tokenizer, device, properties_without_draft_model_without_gguf, scheduler_config, generation_config);
         }
+
         m_impl = std::make_shared<Eagle3DecodingImpl>(main_model_descr, draft_model_desr, eagle_rt_info.hidden_layers_list);
+
+        auto end_time_eagle = std::chrono::steady_clock::now();
+        const auto eagle_llm_duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time_eagle - start_time_llm);
+        std::cout << "[ INFO ] " <<  "*******    Stage eagle_llm_duration time is " << eagle_llm_duration.count() << " ms" << std::endl;
     } else if (draft_model_desr.model != nullptr) {
         OPENVINO_ASSERT(embedder == nullptr, "Speculative decoding is not supported for models with embeddings");
         auto main_model_descr = ov::genai::ModelDesc(model, tokenizer, device, properties_without_draft_model_without_gguf, scheduler_config, generation_config);
         m_impl = std::make_shared<SpeculativeDecodingImpl>(main_model_descr, draft_model_desr);
     } else if (embedder) {
+        auto start_time_llm = std::chrono::steady_clock::now();
         m_impl = std::make_shared<ContinuousBatchingImpl>(model, embedder, tokenizer, scheduler_config, device, properties_without_draft_model_without_gguf, generation_config);
+        auto end_time_llm = std::chrono::steady_clock::now();
+        const auto llm_duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time_llm - start_time_llm);
+        std::cout << "[ INFO ] " <<  "*******    Stage llm_duration is " << llm_duration.count() << " ms" << std::endl;
     }
     else {
         m_impl = std::make_shared<ContinuousBatchingImpl>(model, tokenizer, scheduler_config, device, properties_without_draft_model_without_gguf, generation_config);
     }
 
     m_impl->m_load_time_ms = get_load_time(start_time);
+
+    auto end_time = std::chrono::steady_clock::now();
+    const auto ContinuousBatchingPipeline_duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time - start_time);
+    std::cout << "[ INFO ] " <<  "ContinuousBatchingPipeline_duration is " << ContinuousBatchingPipeline_duration.count() << " ms" << std::endl;
 }
 
 ContinuousBatchingPipeline::ContinuousBatchingPipeline(

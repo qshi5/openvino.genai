@@ -29,7 +29,11 @@ ov::Core core_with_extension() {
 #else
     const char* ov_tokenizer_path = getenv(ScopedVar::ENVIRONMENT_VARIABLE_NAME);
     OPENVINO_ASSERT(ov_tokenizer_path, "openvino_tokenizers path is not set");
+    const auto ov_tokenizer_extension_start = std::chrono::steady_clock::now();
     core.add_extension(ov_tokenizer_path);
+    const auto ov_tokenizer_extension_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - ov_tokenizer_extension_start);
+    std::cout << "[ INFO ] ov_tokenizer add extension (" << ov_tokenizer_path << ") " << ov_tokenizer_extension_duration.count() << " ms" << std::endl;
 #endif
     
     return core;
@@ -333,6 +337,7 @@ void Tokenizer::TokenizerImpl::setup_tokenizer(const std::filesystem::path& mode
         setup_tokenizer(std::make_pair(ov_tokenizer, ov_detokenizer), filtered_properties);
         return;
     }
+
     if (std::filesystem::exists(models_path / "openvino_tokenizer.xml")) {
         ov_tokenizer = core.read_model(models_path / "openvino_tokenizer.xml", {}, filtered_properties);
     }
@@ -350,6 +355,7 @@ void Tokenizer::TokenizerImpl::setup_tokenizer(const std::filesystem::path& mode
     parse_chat_template_from_file(models_path / "chat_template.json", m_chat_template);
     parse_chat_template_from_file(models_path / "chat_template.jinja", m_chat_template);
     m_original_chat_template = m_chat_template;
+
     setup_tokenizer(std::make_pair(ov_tokenizer, ov_detokenizer), filtered_properties);
 }
 
