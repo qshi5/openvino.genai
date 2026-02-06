@@ -10,7 +10,7 @@ bool is_incomplete(std::string& text) {
     return text.size() >= 3 && text.compare(text.size() - 3, 3, replacement) == 0;
 }
 
-constexpr size_t delay_n_tokens = 3;
+constexpr size_t delay_n_tokens = 1;
 
 }  // namespace
 
